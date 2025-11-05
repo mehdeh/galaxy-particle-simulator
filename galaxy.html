@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaxy Particles</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background: #000000;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            font-size: 14px;
+            z-index: 100;
+        }
+        
+        .controls h3 {
+            margin-bottom: 15px;
+            color: #4fc3f7;
+        }
+        
+        .control-item {
+            margin: 10px 0;
+        }
+        
+        .control-item label {
+            display: inline-block;
+            width: 150px;
+        }
+        
+        input[type="range"] {
+            width: 150px;
+            vertical-align: middle;
+        }
+        
+        .value {
+            display: inline-block;
+            width: 50px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h3>🌌 Galaxy Controls</h3>
+        <div class="control-item">
+            <label>Particle Count:</label>
+            <input type="range" id="particleCount" min="1000" max="50000" value="15000" step="1000">
+            <span class="value" id="particleCountValue">15000</span>
+        </div>
+        <div class="control-item">
+            <label>Radius:</label>
+            <input type="range" id="radius" min="5" max="30" value="15" step="1">
+            <span class="value" id="radiusValue">15</span>
+        </div>
+        <div class="control-item">
+            <label>Branches:</label>
+            <input type="range" id="branches" min="2" max="8" value="4" step="1">
+            <span class="value" id="branchesValue">4</span>
+        </div>
+        <div class="control-item">
+            <label>Spin:</label>
+            <input type="range" id="spin" min="0" max="3" value="1" step="0.1">
+            <span class="value" id="spinValue">1</span>
+        </div>
+        <div class="control-item">
+            <label>Randomness:</label>
+            <input type="range" id="randomness" min="0" max="2" value="0.5" step="0.1">
+            <span class="value" id="randomnessValue">0.5</span>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 10, 20);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // Galaxy parameters
+        const parameters = {
+            count: 15000,
+            size: 0.02,
+            radius: 15,
+            branches: 4,
+            spin: 1,
+            randomness: 0.5,
+            randomnessPower: 3,
+            insideColor: '#ff6030',
+            outsideColor: '#1b3984'
+        };
+
+        let geometry = null;
+        let material = null;
+        let points = null;
+
+        // Generate galaxy
+        const generateGalaxy = () => {
+            // Destroy old galaxy
+            if (points !== null) {
+                geometry.dispose();
+                material.dispose();
+                scene.remove(points);
+            }
+
+            // Geometry
+            geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(parameters.count * 3);
+            const colors = new Float32Array(parameters.count * 3);
+
+            const colorInside = new THREE.Color(parameters.insideColor);
+            const colorOutside = new THREE.Color(parameters.outsideColor);
+
+            for (let i = 0; i < parameters.count; i++) {
+                const i3 = i * 3;
+
+                // Position
+                const radius = Math.random() * parameters.radius;
+                const spinAngle = radius * parameters.spin;
+                const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
+
+                const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+                const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+                const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+
+                positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
+                positions[i3 + 1] = randomY;
+                positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+                // Color
+                const mixedColor = colorInside.clone();
+                mixedColor.lerp(colorOutside, radius / parameters.radius);
+
+                colors[i3] = mixedColor.r;
+                colors[i3 + 1] = mixedColor.g;
+                colors[i3 + 2] = mixedColor.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // Material
+            material = new THREE.PointsMaterial({
+                size: parameters.size,
+                sizeAttenuation: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                vertexColors: true
+            });
+
+            // Points
+            points = new THREE.Points(geometry, material);
+            scene.add(points);
+        };
+
+        // Initial galaxy
+        generateGalaxy();
+
+        // Controls
+        const particleCountSlider = document.getElementById('particleCount');
+        const particleCountValue = document.getElementById('particleCountValue');
+        particleCountSlider.addEventListener('input', (e) => {
+            parameters.count = parseInt(e.target.value);
+            particleCountValue.textContent = parameters.count;
+            generateGalaxy();
+        });
+
+        const radiusSlider = document.getElementById('radius');
+        const radiusValue = document.getElementById('radiusValue');
+        radiusSlider.addEventListener('input', (e) => {
+            parameters.radius = parseFloat(e.target.value);
+            radiusValue.textContent = parameters.radius;
+            generateGalaxy();
+        });
+
+        const branchesSlider = document.getElementById('branches');
+        const branchesValue = document.getElementById('branchesValue');
+        branchesSlider.addEventListener('input', (e) => {
+            parameters.branches = parseInt(e.target.value);
+            branchesValue.textContent = parameters.branches;
+            generateGalaxy();
+        });
+
+        const spinSlider = document.getElementById('spin');
+        const spinValue = document.getElementById('spinValue');
+        spinSlider.addEventListener('input', (e) => {
+            parameters.spin = parseFloat(e.target.value);
+            spinValue.textContent = parameters.spin;
+            generateGalaxy();
+        });
+
+        const randomnessSlider = document.getElementById('randomness');
+        const randomnessValue = document.getElementById('randomnessValue');
+        randomnessSlider.addEventListener('input', (e) => {
+            parameters.randomness = parseFloat(e.target.value);
+            randomnessValue.textContent = parameters.randomness;
+            generateGalaxy();
+        });
+
+        // Animation
+        const clock = new THREE.Clock();
+
+        const animate = () => {
+            const elapsedTime = clock.getElapsedTime();
+
+            // Rotate galaxy
+            if (points) {
+                points.rotation.y = elapsedTime * 0.05;
+            }
+
+            // Render
+            renderer.render(scene, camera);
+
+            // Call animate again on the next frame
+            requestAnimationFrame(animate);
+        };
+
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Update camera
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            // Update renderer
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        });
+
+        // Mouse interaction for camera movement
+        let mouseX = 0;
+        let mouseY = 0;
+
+        document.addEventListener('mousemove', (event) => {
+            mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+            mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            camera.position.x = mouseX * 5;
+            camera.position.y = 10 + mouseY * 5;
+            camera.lookAt(0, 0, 0);
+        });
+    </script>
+</body>
+</html>
